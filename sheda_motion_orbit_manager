@@ -18,12 +18,113 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-
+import shlex, subprocess
 import os, sys, time
 import ConfigParser
 import signal
 
 from sheda_motion_orbit_drv.ShedaMotionOrbitDrv import ShedaOrbitDrv, ShedaMotionDrv
+
+# WebServer utils
+NOHUP_CMD="/usr/bin/nohup"
+PID_FILE_PATH="/var/run"
+PID_FILE_NAME="sheda_motion_orbit_webserver.pid"
+
+
+class ShedaMotionWebServer:
+    ## Define the init script to initialize the application
+    def __init__(self,
+                 verbose_level=0):
+        self.verbose_level = verbose_level
+
+        # Check for running process
+        self.pid=-1
+        pid_filename = os.path.join(PID_FILE_PATH, PID_FILE_NAME)
+        if os.path.isfile(pid_filename):
+            pid_file = open(pid_filename, 'r') # read/write at begining
+            self.pid = pid_file.read()
+            if self.verbose_level > 0:
+              print 'pid file exist:'+pid_filename+" contain pid:"+self.pid
+            pid_file.close()
+        return
+
+    # Private Utils Methodes
+    def __kill_pid(self, pid):
+        """ Check For the existence of a unix pid. """
+        try:
+            print "Kill pid:" +str(pid)+ ", gid:"+ str(os.getpgid(pid))
+            os.killpg(os.getpgid(pid), 9)
+        except OSError:
+            return False
+        else:
+            return True
+
+    def __check_pid(self, pid):
+        """ Check For the existence of a unix pid. """
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            return False
+        else:
+            return True
+
+    # Low API, should not be used directly
+    # Live streaming Part
+    def _check_running(self):
+        if self.pid != -1:
+            if (self.__check_pid(int(self.pid))):
+                if self.verbose_level > 0:
+                    print "Check running: already started"
+                return "Already Started", True
+            else:
+                if self.verbose_level > 0:
+                    print "Check running: not started, removing file"
+                pid_filename = os.path.join(PID_FILE_PATH, PID_FILE_NAME)
+                if os.path.isfile(pid_filename):
+                    os.remove(pid_filename)
+                return "Not Started", False
+        else:
+            return "No PID File", False
+
+    def preexec_function(self):
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+    def start(self):
+        strout_run, running = self._check_running();
+        if running :
+            return "Already Started", True
+        else:
+            args = shlex.split("/usr/bin/python sheda_motion_orbit_webserver/manage.py runserver -v 2 0.0.0.0:8090")
+            print args
+            # result = subprocess.call("nohup python sheda_motion_orbit_webserver/manage.py runserver -v 2 0.0.0.0:8090")
+            # result = subprocess.Popen([NOHUP_CMD, "python", "sheda_motion_orbit_webserver/manage.py runserver -v 2 0.0.0.0:8090"],
+            result = subprocess.Popen(args,
+                     stdout=subprocess.PIPE,
+                     stderr=subprocess.PIPE,
+                     preexec_fn=os.setsid,
+                     shell=False)
+
+            # out, err = result.communicate()
+            # if err:
+            #     return "Error in lauching the command: '" + out + "'", err
+
+            # Write PID file
+            pid_filename = os.path.join(PID_FILE_PATH, PID_FILE_NAME)
+            pid_file = open(pid_filename, 'r+' if (os.path.isfile(pid_filename)) else 'w+') # read/write at begining
+            pid_file.write(str(result.pid))
+            pid_file.close()
+
+            return "Started (pid: " + str(result.pid) + " )", True
+
+    def stop(self):
+        strout_run, running = self._check_running();
+        if running :
+            if (self.__kill_pid(int(self.pid))):
+                pid_filename = os.path.join(PID_FILE_PATH, PID_FILE_NAME)
+                os.remove(pid_filename)
+            return "Stopped (pid: " + str(self.pid) + " )", True
+        else:
+            return "Already Stopped", True
 
 def get_args(argv):
     import argparse
@@ -74,7 +175,14 @@ def get_args(argv):
     vertical.add_argument('-d', '--down',     dest='ver', action="store_const", const="down", help="Rotate down")
     vertical.add_argument('-e', '--vreset',   dest='ver', action="store_const", const="reset", help="Reset vertical position")
 
+    # Go to defined position
     move_parser.add_argument('-p', '--position', dest='position', type=str, help="Move to preset position number(see config file)")
+
+    # WebServer command
+    webserver_parser = subparsers.add_parser('webserver', help="Launch Webserver")
+    action = webserver_parser.add_mutually_exclusive_group()
+    action.add_argument('-s', '--start', dest='do', action="store_const", const="start", help="Start the webserver in background")
+    action.add_argument('-S', '--stop',  dest='do', action="store_const", const="stop",  help="Stop the webserver")
 
     return parser.parse_args(argv[1:])
 
@@ -84,7 +192,7 @@ def main(argv):
     signal.alarm(50)
 
     args = get_args(argv)
-    print(args)
+    # print(args)
 
     # Configuration manipulation
     conf = ConfigParser.ConfigParser()
@@ -145,6 +253,21 @@ def main(argv):
             mdrv.movePosition(position=args.position)
 
         sys.exit(0)
+
+    elif args.action == "webserver":
+        # python manage.py runserver -v 2 0.0.0.0:8090
+        print ("Warning: this command is meant to be used while devellopping, not once installed")
+        webserver = ShedaMotionWebServer()
+        if args.do == "start":
+            out, err = webserver.start()
+        elif args.do == "stop":
+            out, err = webserver.stop()
+        else:
+            print ("Error command not specifyied chose --start/--stop")
+            return 1
+        print out
+        print err
+
     else:
         print ("Bad command:" + str(args.action))
 
