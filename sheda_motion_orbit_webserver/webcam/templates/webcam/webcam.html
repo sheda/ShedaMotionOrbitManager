@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><title> Sheda Motion</title></head>
+<body>
+    <center>
+    <iframe src="http://192.168.0.15:8081" width="320" height="240"></iframe>
+    <form name="control" action="{% url 'webcam:control' %}" method="post">
+    Watch detection:
+    <br>
+    {% csrf_token %}
+    <br>
+    <strong>  inital:  {% if detection_init_status %} <font color="green"> on </font>{% else %} <font color="red"> off </font> {% endif %}</strong>
+    <br>
+    <strong> current: {% if detection_curr_status %} <font color="green"> on </font>{% else %} <font color="red"> off </font> {% endif %}</strong>
+    <br>
+    <INPUT TYPE=SUBMIT NAME="command" VALUE="Left">
+    <INPUT TYPE=SUBMIT NAME="command" VALUE="Up">
+    <INPUT TYPE=SUBMIT NAME="command" VALUE="Down">
+    <INPUT TYPE=SUBMIT NAME="command" VALUE="Right">
+    <br>
+    {{ positions_names }}
+    <br>
+    <INPUT TYPE=SUBMIT NAME="command" VALUE="0" ID="i0">
+    <INPUT TYPE=SUBMIT NAME="command" VALUE="1" ID="i1">
+    <INPUT TYPE=SUBMIT NAME="command" VALUE="2" ID="i2">
+    <INPUT TYPE=SUBMIT NAME="command" VALUE="3" ID="i3">
+    <INPUT TYPE=SUBMIT NAME="command" VALUE="4" ID="i4">
+    <INPUT TYPE=SUBMIT NAME="command" VALUE="5" ID="i5">
+    <INPUT TYPE=SUBMIT NAME="command" VALUE="6" ID="i6">
+    <br>
+    <INPUT TYPE=SUBMIT NAME="command" VALUE="ResetV">
+    <INPUT TYPE=SUBMIT NAME="command" VALUE="ResetH">
+    <br>
+    <INPUT TYPE=SUBMIT NAME="command" VALUE="DetectionOn">
+    <INPUT TYPE=SUBMIT NAME="command" VALUE="DetectionOff">
+    <br>
+    <INPUT TYPE=SUBMIT NAME="command" VALUE="LiveOn">
+    <INPUT TYPE=SUBMIT NAME="command" VALUE="LiveOff">
+    <br>
+    <INPUT TYPE=SUBMIT NAME="command" VALUE="StatusRefresh">
+    </form>
+    </center>
+</body>
+</html>

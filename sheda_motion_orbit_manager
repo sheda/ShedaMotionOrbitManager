@@ -1,0 +1,153 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+#
+#  Copyright (C) 2016, Sheda (sheda1805 at gmail.com)
+#
+#  Homepage: http://www.sheda.fr/
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+import os, sys, time
+import ConfigParser
+import signal
+
+from sheda_motion_orbit_drv.ShedaMotionOrbitDrv import ShedaOrbitDrv, ShedaMotionDrv
+
+def get_args(argv):
+    import argparse
+
+    # create the top-level parser
+    parser = argparse.ArgumentParser(description='Script ')
+
+    parser.add_argument('-v', '--verbose', action="count",
+                        dest="verbose_level",
+                        help="Increase verbosity")
+
+    parser.add_argument('-c', '--conf', action="store",
+                        dest="conf",
+                        default="/etc/sheda_motion_drv.conf",
+                        help="Provide the path to an alternate configuration file")
+
+    # action parser
+    subparsers = parser.add_subparsers(dest='action', help='Action to execute')
+
+    # Status
+    status_parser = subparsers.add_parser('status', help="Check if Motion already running")
+    status_parser.add_argument('-w', '--watch', dest='watch', action="store_true", help="Watch check the watch in addition of live streaming, if false check only live streaming")
+
+    # Start Command
+    start_parser = subparsers.add_parser('start', help="Launch motion and launch the watch if required")
+    start_parser.add_argument('-w', '--watch', dest='watch', action="store_true", help="Enable the Watch")
+    start_parser.add_argument('-m', '--move', dest='move', action="store_true", help="Move to the on_position(see config file)")
+
+    # restart command
+    restart_parser = subparsers.add_parser('restart', help="Stop Motion and the restart it")
+    restart_parser.add_argument('-w', '--watch', dest='watch', action="store_true", help="Enable the Watch")
+    restart_parser.add_argument('-m', '--move', dest='move', action="store_true", help="Move to the on_position(see config file)")
+
+    # stop command
+    stop_parser = subparsers.add_parser('stop', help="Stop Motion, or only stop the watch")
+    stop_parser.add_argument('-w', '--watch', dest='watch', action="store_true", help="Stop only the watch")
+    stop_parser.add_argument('-m', '--move', dest='move', action="store_true", help="Move to the off_position(see config file)")
+
+    # Move command
+    move_parser = subparsers.add_parser('move', help="Move the Camera")
+    horizontal = move_parser.add_mutually_exclusive_group()
+    horizontal.add_argument('-r', '--right',  dest='hor', action="store_const", const="right",help="Rotate Right")
+    horizontal.add_argument('-l', '--left',   dest='hor', action="store_const", const="left", help="Rotate Left")
+    horizontal.add_argument('-o', '--hreset', dest='hor', action="store_const", const="reset", help="Reset horizontal position")
+
+    vertical = move_parser.add_mutually_exclusive_group()
+    vertical.add_argument('-u', '--up',       dest='ver', action="store_const", const="up",   help="Rotate up")
+    vertical.add_argument('-d', '--down',     dest='ver', action="store_const", const="down", help="Rotate down")
+    vertical.add_argument('-e', '--vreset',   dest='ver', action="store_const", const="reset", help="Reset vertical position")
+
+    move_parser.add_argument('-p', '--position', dest='position', type=str, help="Move to preset position number(see config file)")
+
+    return parser.parse_args(argv[1:])
+
+def main(argv):
+    # Make sure the process is killed if last more than 50s.
+    # Means that something badly wrong happened.
+    signal.alarm(50)
+
+    args = get_args(argv)
+    print(args)
+
+    # Configuration manipulation
+    conf = ConfigParser.ConfigParser()
+    conf_files = [args.conf]
+    read = conf.read(conf_files)
+    if not read:
+        sys.exit("No configuration found.\nTried : %s" % conf_files)
+
+    # Motion Driver
+    if args.action == "start":
+        cdrv = ShedaMotionDrv(conf=args.conf, verbose_level=args.verbose_level)
+        strout, code = cdrv.start(watch=args.watch, move=args.move)
+        print (strout)
+        sys.exit(code)
+
+    elif args.action == "status":
+        cdrv = ShedaMotionDrv(conf=args.conf, verbose_level=args.verbose_level)
+        strout, code = cdrv.status(watch=args.watch, move=args.move)
+        print (strout)
+        sys.exit(code)
+
+    elif args.action == "stop":
+        cdrv = ShedaMotionDrv(conf=args.conf, verbose_level=args.verbose_level)
+        strout, code = cdrv.stop(watch=args.watch, move=args.move)
+        print (strout)
+        sys.exit(code)
+
+    elif args.action == "restart":
+        cdrv = ShedaMotionDrv(conf=args.conf, verbose_level=args.verbose_level)
+        strout, code = cdrv.stop(watch=False, move=False) # force stopping
+        print (strout)
+        strout, code = cdrv.start(watch=args.watch, move=args.move)
+        print (strout)
+        sys.exit(code)
+
+    # ORBIT Cam Movement Driver
+    elif args.action == "move":
+        mdrv=ShedaOrbitDrv(conf=args.conf)
+
+        if args.ver == "reset":
+            mdrv.resetVer()
+            time.sleep(1)
+        elif args.ver == "up":
+            mdrv.moveUp()
+            time.sleep(0.1)
+        elif args.ver == "down":
+            mdrv.moveDown()
+            time.sleep(0.1)
+
+        if args.hor == "reset":
+            mdrv.resetHor()
+        elif args.hor == "right":
+            mdrv.moveRight()
+        elif args.hor == "left":
+            mdrv.moveLeft()
+
+        if args.position:
+            mdrv.movePosition(position=args.position)
+
+        sys.exit(0)
+    else:
+        print ("Bad command:" + str(args.action))
+
+
+if __name__ == "__main__":
+    main(sys.argv)
