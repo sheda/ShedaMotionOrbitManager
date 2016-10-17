@@ -3,7 +3,37 @@ from django.shortcuts import render
 from django.http import *
 from django.template import loader
 
+import logging
 from sheda_motion_orbit_drv.ShedaMotionOrbitDrv import ShedaOrbitDrv, ShedaMotionDrv
+
+logging_filename='/var/log/sheda_motion_orbit_manager_webserver.log'
+
+def create_logger(debug, loggername, log_file_enable, filename):
+    # Logger
+    logger = logging.getLogger(loggername)
+    logger.setLevel(logging.DEBUG)  # Only allow debug
+    formatter = logging.Formatter('%(name)s - %(levelname)s - %(funcName)s - %(message)s')
+
+    # STREAM CHANNEL - STDOUT
+    stream = logging.StreamHandler()
+    stream.setFormatter(formatter)
+    if debug:
+        stream.setLevel(logging.DEBUG)
+    else:
+        stream.setLevel(logging.INFO)
+    logger.addHandler(stream)
+
+    # ROTATING CHANNEL
+    if log_file_enable:
+        rf = logging.RotatingFileHandler(filename, mode='a', maxBytes=1000000, backupCount=5)
+        rf.setFormatter(formatter)
+        if debug:
+            rf.setLevel(logging.DEBUG)
+        else:
+            rf.setLevel(logging.INFO)
+        logger.addHandler(rf)
+
+    return logger
 
 def get_status_init():
     import shelve
@@ -15,8 +45,12 @@ def get_status_init():
 
 # Create your views here.
 def control(request):
-    orbit_drv  = ShedaOrbitDrv();
-    motion_drv = ShedaMotionDrv()
+
+    # Logger
+    logger = create_logger(False, 'ShedaMotionOrbitManagerWebserver', True, logging_filename)
+
+    orbit_drv  = ShedaOrbitDrv(logger);
+    motion_drv = ShedaMotionDrv(logger)
 
     status_curr = "unk"
     status_init = "unk"
@@ -68,18 +102,18 @@ def control(request):
     # Motion management
     elif (cmd == "LiveOn"):
         motion_drv.start(False)
-        _, status_curr = motion_drv.status(True)
+        status_curr = motion_drv.status(True)
     elif (cmd == "LiveOff"):
         motion_drv.stop(False)
         status_curr = False
     elif (cmd == "DetectionOn"):
         motion_drv.start(True)
-        _, status_curr = motion_drv.status(True)
+        status_curr = motion_drv.status(True)
     elif (cmd == "DetectionOff"):
         motion_drv.stop(True)
-        _, status_curr = motion_drv.status(True)
+        status_curr = motion_drv.status(True)
     elif (cmd == "StatusRefresh"):
-        _, status_curr = motion_drv.status(True)
+        status_curr = motion_drv.status(True)
     else:
         return HttpResponse("Error select the right button")
 
@@ -91,9 +125,13 @@ def control(request):
     return render(request, 'webcam/webcam.html', {'detection_init_status': status_init, 'detection_curr_status': status_curr, 'positions_names': positions_names})
 
 def index(request):
-    orbit_drv  = ShedaOrbitDrv();
-    motion_drv = ShedaMotionDrv() # verbosity to one
-    _, status_init = motion_drv.status(True)
+    # Logger
+    logger = create_logger(False, 'ShedaMotionOrbitManagerWebserver', True, logging_filename)
+
+    orbit_drv  = ShedaOrbitDrv(logger);
+    motion_drv = ShedaMotionDrv(logger)
+
+    status_init = motion_drv.status(True)
 
     import shelve
     shelve_dict = shelve.open("/tmp/sheda_orbitcam_webserver.shelve")
@@ -103,7 +141,7 @@ def index(request):
         # Cut watch if was active to avoid movement sending notification
         motion_drv.stop(True)
 
-    _, status_curr = motion_drv.status(True)
+    status_curr = motion_drv.status(True)
 
     positions_names = ""
     for i in range(0,7):
