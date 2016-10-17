@@ -22,6 +22,7 @@ import shlex, subprocess
 import os, sys, time
 import ConfigParser
 import signal
+import logging
 
 from sheda_motion_orbit_drv.ShedaMotionOrbitDrv import ShedaOrbitDrv, ShedaMotionDrv
 
@@ -29,13 +30,44 @@ from sheda_motion_orbit_drv.ShedaMotionOrbitDrv import ShedaOrbitDrv, ShedaMotio
 NOHUP_CMD="/usr/bin/nohup"
 PID_FILE_PATH="/var/run"
 PID_FILE_NAME="sheda_motion_orbit_webserver.pid"
+logging_filename='/var/log/sheda_motion_orbit_manager.log'
+
+
+def CreateLogger(debug, loggername, log_file_enable, filename):
+    # Logger
+    logger = logging.getLogger(loggername)
+    logger.setLevel(logging.DEBUG)  # Only allow debug
+    formatter = logging.Formatter('%(name)s - %(levelname)s - %(funcName)s - %(message)s')
+
+    # STREAM CHANNEL - STDOUT
+    stream = logging.StreamHandler()
+    stream.setFormatter(formatter)
+    if debug:
+        stream.setLevel(logging.DEBUG)
+    else:
+        stream.setLevel(logging.INFO)
+
+    # ROTATING CHANNEL
+    if log_file_enable:
+        rf = logging.RotatingFileHandler(filename, mode='a', maxBytes=1000000, backupCount=5)
+        rf.setFormatter(formatter)
+        if debug:
+            rf.setLevel(logging.DEBUG)
+        else:
+            rf.setLevel(logging.INFO)
+
+    logger.addHandler(stream)
+    logger.addHandler(rf)
+    return logger
 
 
 class ShedaMotionWebServer:
     ## Define the init script to initialize the application
     def __init__(self,
-                 verbose_level=0):
-        self.verbose_level = verbose_level
+                 logger,
+                 debug):
+        self.debug = debug
+        self.logger = logger
 
         # Check for running process
         self.pid=-1
@@ -43,8 +75,7 @@ class ShedaMotionWebServer:
         if os.path.isfile(pid_filename):
             pid_file = open(pid_filename, 'r') # read/write at begining
             self.pid = pid_file.read()
-            if self.verbose_level > 0:
-              print 'pid file exist:'+pid_filename+" contain pid:"+self.pid
+            logger.debug('pid file exist:'+pid_filename+" contain pid:"+self.pid)
             pid_file.close()
         return
 
@@ -52,7 +83,7 @@ class ShedaMotionWebServer:
     def __kill_pid(self, pid):
         """ Check For the existence of a unix pid. """
         try:
-            print "Kill pid:" +str(pid)+ ", gid:"+ str(os.getpgid(pid))
+            logger.debug("Kill pid:" +str(pid)+ ", gid:"+ str(os.getpgid(pid)))
             os.killpg(os.getpgid(pid), 9)
         except OSError:
             return False
@@ -73,12 +104,10 @@ class ShedaMotionWebServer:
     def _check_running(self):
         if self.pid != -1:
             if (self.__check_pid(int(self.pid))):
-                if self.verbose_level > 0:
-                    print "Check running: already started"
+                logger.debug("Check running: already started")
                 return "Already Started", True
             else:
-                if self.verbose_level > 0:
-                    print "Check running: not started, removing file"
+                logger.debug("Check running: not started, removing file")
                 pid_filename = os.path.join(PID_FILE_PATH, PID_FILE_NAME)
                 if os.path.isfile(pid_filename):
                     os.remove(pid_filename)
@@ -132,9 +161,14 @@ def get_args(argv):
     # create the top-level parser
     parser = argparse.ArgumentParser(description='Script ')
 
-    parser.add_argument('-v', '--verbose', action="count",
-                        dest="verbose_level",
-                        help="Increase verbosity")
+    parser.add_argument('-d', '--debug', action="store_true",
+                        dest="debug",
+                        help="idebug level")
+
+    parser.add_argument('-l', '--log', action="store_true",
+                        dest="logging_enable",
+                        help="activate logging in file("+logging_filename+")")
+
 
     parser.add_argument('-c', '--conf', action="store",
                         dest="conf",
@@ -194,6 +228,9 @@ def main(argv):
     args = get_args(argv)
     # print(args)
 
+    # Logger
+    logger = CreateLogger(args.debug, 'ShedaMotionOrbitManager', args.logging_enable, logging_filename)
+
     # Configuration manipulation
     conf = ConfigParser.ConfigParser()
     conf_files = [args.conf]
@@ -203,34 +240,34 @@ def main(argv):
 
     # Motion Driver
     if args.action == "start":
-        cdrv = ShedaMotionDrv(conf=args.conf, verbose_level=args.verbose_level)
+        cdrv = ShedaMotionDrv(logger=logger, conf=args.conf, debug=args.debug)
         strout, code = cdrv.start(watch=args.watch, move=args.move)
-        print (strout)
+        logger.info(strout)
         sys.exit(code)
 
     elif args.action == "status":
-        cdrv = ShedaMotionDrv(conf=args.conf, verbose_level=args.verbose_level)
+        cdrv = ShedaMotionDrv(logger=logger, conf=args.conf, debug=args.debug)
         strout, code = cdrv.status(watch=args.watch, move=args.move)
-        print (strout)
+        logger.info(strout)
         sys.exit(code)
 
     elif args.action == "stop":
-        cdrv = ShedaMotionDrv(conf=args.conf, verbose_level=args.verbose_level)
+        cdrv = ShedaMotionDrv(logger=logger, conf=args.conf, debug=args.debug)
         strout, code = cdrv.stop(watch=args.watch, move=args.move)
-        print (strout)
+        logger.info(strout)
         sys.exit(code)
 
     elif args.action == "restart":
-        cdrv = ShedaMotionDrv(conf=args.conf, verbose_level=args.verbose_level)
+        cdrv = ShedaMotionDrv(logger=logger, conf=args.conf, debug=args.debug)
         strout, code = cdrv.stop(watch=False, move=False) # force stopping
-        print (strout)
+        logger.info(strout)
         strout, code = cdrv.start(watch=args.watch, move=args.move)
-        print (strout)
+        logger.info(strout)
         sys.exit(code)
 
     # ORBIT Cam Movement Driver
     elif args.action == "move":
-        mdrv=ShedaOrbitDrv(conf=args.conf)
+        mdrv=ShedaOrbitDrv(logger=logger, conf=args.conf)
 
         if args.ver == "reset":
             mdrv.resetVer()
@@ -256,17 +293,17 @@ def main(argv):
 
     elif args.action == "webserver":
         # python manage.py runserver -v 2 0.0.0.0:8090
-        print ("Warning: this command is meant to be used while devellopping, not once installed")
-        webserver = ShedaMotionWebServer()
+        logger.warning("Warning: this command is meant to be used while devellopping, not once installed")
+        webserver = ShedaMotionWebServer(logger=logger)
         if args.do == "start":
             out, err = webserver.start()
         elif args.do == "stop":
             out, err = webserver.stop()
         else:
-            print ("Error command not specifyied chose --start/--stop")
+            logger.error("Error command not specifyied chose --start/--stop")
             return 1
-        print out
-        print err
+        logger.info(out)
+        logger.error(err)
 
     else:
         print ("Bad command:" + str(args.action))
