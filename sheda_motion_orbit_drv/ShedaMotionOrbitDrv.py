@@ -78,6 +78,7 @@ class ShedaOrbitDrv:
 
     # Generic Move
     def __moveGeneric(self, control, value):
+        self.logger.debug("Move "+ str(control) + " "+ str(value))
         result = subprocess.Popen([UVCDYNCTRLEXEC, "-s", control, "--", value],
                  stdout=subprocess.PIPE,
                  stderr=subprocess.PIPE,
@@ -138,6 +139,7 @@ class ShedaOrbitDrv:
         ret_code  = self.__moveGeneric("Pan, Relative", pan_value)
         time.sleep(2)
         ret_code &= self.__moveGeneric("Tilt, Relative", tilt_value)
+        time.sleep(2)
         return ret_code
 
     # Pan Reset
@@ -165,19 +167,14 @@ class ShedaOrbitDrv:
 class ShedaMotionDrv:
     ## Define the init script to initialize the application
     def __init__(self,
-                 conf="/etc/sheda_motion_orbit_manager.conf",
-                 verbose_level=0):
-        self.verbose_level = verbose_level
-        self.off_position = None
-        self.on_position  = None
+                 logger,
+                 conf="/etc/sheda_motion_orbit_manager.conf"):
+        self.logger = logger
 
         # Get position for watching
         self.conf_name = conf
         self.conf = ConfigParser.ConfigParser()
         self.cfg_ok = self.conf.read([self.conf_name])
-        if self.cfg_ok:
-            self.off_position = self.conf.get("watch", "off_position")
-            self.on_position  = self.conf.get("watch", "on_position")
 
         # Check for running process
         self.pid=-1
@@ -191,81 +188,97 @@ class ShedaMotionDrv:
 
     # Public API
     def start(self, watch, move=False):
-        self.logger.info("start command with watch: " + str(watch) + ", and move: "+str(move))
-        ret_str = ""
-        strout, code = self._check_running()
-        ret_str += strout + "\n"
-        if not code:
-            self.logger.info(" . Not running, start motion")
-            ret_str +=  "Starting Motion, and the watch" + "\n"
-            ret_str += strout + "\n"
-            strout, code = self._start_running(watch=watch, move=move)
-            ret_str += strout + "\n"
+        self.logger.info("START command with watch: " + str(watch) + ", and move: "+str(move))
+        position_reached = False
+
+        # 1 - Running
+        running = self._check_running()
+        if not running:
+            self.logger.debug(" . Not running")
+            # First move the camera
+            if move:
+                if self.cfg_ok:
+                    position = self.conf.get("watch", "on_position")
+                    if position:
+                        self.logger.info(" . Move to on_position: "+str(position))
+                        orbit_drv=ShedaOrbitDrv(self.conf_name)
+                        orbit_drv.movePosition(position) # timing to wait postion arrival already set
+                        position_reached = True
+            # Then Start running
+            self.logger.info(" . Start Run")
+            self._start_running()
+            time.sleep(0.5)
         else:
             self.logger.info(" . Already running")
-            if watch:
+
+        # 2 - Watch
+        if watch:
+            self.logger.debug(" . The Watch requested")
+            watching = self._check_watching()
+            if not watching:
+                self.logger.debug(" . not watching")
+                # First move the camera if not already done
+                if move and not position_reached:
+                    if self.cfg_ok:
+                        position = self.conf.get("watch", "on_position")
+                        if position:
+                            self.logger.info(" . Move to on_position: "+str(position))
+                            orbit_drv=ShedaOrbitDrv(self.conf_name)
+                            orbit_drv.movePosition(position)
+                # Then start the watch
                 self.logger.info(" . Start the watch")
-                _, code = self._check_watching()
-                if not code:
-                    if move:
-                        if self.cfg_ok:
-                            position = self.conf.get("watch", "on_position")
-                            if position:
-                                orbit_drv=ShedaOrbitDrv(self.conf_name)
-                                orbit_drv.movePosition(position)
-                    strout, code = self._start_watching()
-                    ret_str += strout + "\n"
-                else:
-                    ret_str += strout + "\n"
-        return ret_str, code
+                self._start_watching()
+            else:
+                self.logger.info(" . Already watching")
+        else:
+            self.logger.debug(" . The Watch Not requested")
+            watching = self._check_watching()
+            if watching:
+                self.logger.debug(" . but watching")
+                self.logger.info(" . Stop the watch")
+                self._stop_watching()
+        return True
 
     def status(self, watch=False):
-        self.logger.info("status command with watch: " + str(watch))
-        ret_str = ""
-        strout, code = self._check_running()
-        ret_str += strout + "\n"
-        if not code:
-            return ret_str, code
+        self.logger.info("STATUS command with watch: " + str(watch))
+        running = self._check_running()
+        if not running:
+            return running
         else:
-            strout, code = self._check_watching()
-            ret_str += strout + "\n"
+            watching = self._check_watching()
             if not watch:
-                return ret_str, True
+                return True
             else:
-                return ret_str, code
+                return watching
 
     def stop(self, watch, move=False):
-        self.logger.info("stop command with watch: " + str(watch) + ", and move: "+str(move))
-        ret_str = ""
-        strout, code = self._check_running()
-        if not code:
-            # Motion not running
-            ret_str += strout + "\n"
-            return ret_str, True
+        self.logger.info("STOP command with watch: " + str(watch) + ", and move: "+str(move))
+        running = self._check_running()
+        if not running:
+            self.logger.info(" . Not running")
+            return True
         else:
-            ret_str += strout + "\n"
             if watch:
-                ret_str +=  "Only stopping the watch" + "\n"
-                strout, code = self._check_watching()
-                if not code:
-                    ret_str += strout + "\n"
+                self.logger.debug(" . Stop only the watch")
+                watching = self._check_watching()
+                if watching:
+                    self.logger.info(" . Stop the watch")
+                    self._stop_watching()
                 else:
-                    ret_str += strout + "\n"
-                    strout, code = self._stop_watching()
-                    ret_str += strout + "\n"
-                    # Check if need to reach watching position, and reach it
-                    if move:
-                        if self.cfg_ok:
-                            position = self.conf.get("watch", "off_position")
-                            if position:
-                                orbit_drv=ShedaOrbitDrv(self.conf_name)
-                                orbit_drv.movePosition(position)
+                    self.logger.info(" . The Watch already stopped")
             else:
-                ret_str += "Stopping" + "\n"
-                ret_str += strout + "\n"
-                strout, code = self._stop_running(move=move)
-                ret_str += strout + "\n"
-            return ret_str, True
+                self.logger.info(" . Stop running")
+                self._stop_running()
+
+            # Then move to the off postion
+            if move:
+                if self.cfg_ok:
+                    position = self.conf.get("watch", "off_position")
+                    if position:
+                        self.logger.info(" . Move to off_position: "+str(position))
+                        orbit_drv=ShedaOrbitDrv(self.conf_name)
+                        orbit_drv.movePosition(position)
+            return True
 
     # Private Utils Methodes
     def __kill_pid(self, pid):
@@ -291,80 +304,42 @@ class ShedaMotionDrv:
     def _check_running(self):
         if self.pid != -1:
             if (self.__check_pid(int(self.pid))):
-                self.logger.debug("PID file exist, check running: Started")
+                self.logger.debug(" . . PID file exist, check running: Started")
                 return True
             else:
-                self.logger.debug("PID file exist, check running: Stopped, clean pid_file")
+                self.logger.debug(" . . PID file exist, check running: Stopped, clean pid_file")
                 pid_filename = os.path.join(PID_FILE_PATH, PID_FILE_NAME)
                 if os.path.isfile(pid_filename):
                     os.remove(pid_filename)
                 return False
         else:
-            self.logger.debug("PID file doesn't exist, check running: Stopped")
+            self.logger.debug(" . . PID file doesn't exist, check running: Stopped")
             return False
 
 
-    def _start_running(self, watch, move=False):
-        running = self._check_running();
-        if running :
-            self.logger.debug("Already Running, Start the Watch")
-            if watch:
-                strout, code = self._check_watching()
-                return strout_run + " " + strout, True
-            else:
-                return "Already Started", True
-        else:
-            if move:
-                if self.cfg_ok:
-                    position = self.conf.get("watch", "on_position")
-                    if position:
-                        orbit_drv=ShedaOrbitDrv(self.conf_name)
-                        orbit_drv.movePosition(position)
+    def _start_running(self):
+        proc = subprocess.Popen([NOHUP_CMD, MOTION_CMD, "2>&1"],
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                shell=False)
+        # Write PID file
+        pid_filename = os.path.join(PID_FILE_PATH, PID_FILE_NAME)
+        pid_file = open(pid_filename, 'w+' if (self.pid==-1) else 'r+') # read/write at begining
+        pid_file.write(str(proc.pid))
+        pid_file.close()
+        self.logger.debug(" . . Started running (pid: " + str(proc.pid) + " ), wrote PID file: "+pid_filename)
 
-            proc = subprocess.Popen([NOHUP_CMD, MOTION_CMD, "2>&1"],
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE,
-                                    shell=False)
-            # Write PID file
+        return True
+
+    def _stop_running(self):
+        if (self.__kill_pid(int(self.pid))):
             pid_filename = os.path.join(PID_FILE_PATH, PID_FILE_NAME)
-            pid_file = open(pid_filename, 'w+' if (self.pid==-1) else 'r+') # read/write at begining
-            pid_file.write(str(proc.pid))
-            pid_file.close()
-
-            time.sleep(0.5)
-            if watch:
-                strout, code = self._start_watching()
-                return "Started (pid: " + str(proc.pid) + " ), The Watch is ACTIVATED" + strout, True
-            else:
-                # Motion always start with live on
-                strout, code = self._check_watching()
-                if code:
-                    strout, code = self._stop_watching()
-            return "Started (pid: " + str(proc.pid) + " )", True
-
-    def _stop_running(self, move=False):
-        strout_run, running = self._check_running();
-        if running :
-            strout, code = self._stop_watching()
-            if (self.__kill_pid(int(self.pid))):
-                pid_filename = os.path.join(PID_FILE_PATH, PID_FILE_NAME)
-                os.remove(pid_filename)
-                self.logger.debug(" . Stopped Running (pid: " + str(self.pid) + " )")
-            else:
-                self.logger.error(" . While Stopping (pid: " + str(self.pid) + " )")
-
-            # Check if need to reach watching position, and reach it
-            if move:
-                if self.cfg_ok:
-                    position = self.conf.get("watch", "off_position")
-                    if position:
-                        orbit_drv=ShedaOrbitDrv(self.conf_name)
-                        orbit_drv.movePosition(position)
-                        self.logger.info(" . Moved to off_position: " + str(position))
-            return True
+            os.remove(pid_filename)
+            self.logger.debug(" . Stopped Running (pid: " + str(self.pid) + " )")
         else:
-            self.logger.info(" . Running already Stopped")
-            return True
+            self.logger.error(" . While Stopping (pid: " + str(self.pid) + " )")
+
+        return True
 
     # WATCH PART
     def _check_watching(self):
@@ -372,7 +347,7 @@ class ShedaMotionDrv:
         req = requests.get("http://"+MOTION_ADMIN_SRV_URL+"/0/detection/status")
         status = req.status_code
         body = str(req.text)
-        self.logger.debug((body,status))
+        self.logger.debug((body,str(status)))
         if (status == 200) and (body.find("Detection status ACTIVE") != -1):
             self.logger.info(" . The Watch is Active")
             return True
@@ -386,7 +361,7 @@ class ShedaMotionDrv:
         req = requests.get("http://"+MOTION_ADMIN_SRV_URL+"/0/detection/start")
         status = req.status_code
         body = str(req.text)
-        self.logger.debug((body,status)
+        self.logger.debug((body,str(status))
         self.logger.info( " . Watch Activated")
         return (status == 200)
 
@@ -396,6 +371,6 @@ class ShedaMotionDrv:
         self.logger.debug(str(req))
         status = req.status_code
         body = str(req.text)
-        self.logger.debug((body,status)
+        self.logger.debug((body,str(status))
         self.logger.info( " . Watch Desactivated")
         return True
