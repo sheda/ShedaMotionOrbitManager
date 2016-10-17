@@ -25,15 +25,11 @@ import signal
 import logging
 
 from sheda_motion_orbit_drv.ShedaMotionOrbitDrv import ShedaOrbitDrv, ShedaMotionDrv
+from sheda_motion_orbit_webserver.ShedaMotionWebServer import ShedaMotionWebServer
 
-# WebServer utils
-NOHUP_CMD="/usr/bin/nohup"
-PID_FILE_PATH="/var/run"
-PID_FILE_NAME="sheda_motion_orbit_webserver.pid"
 logging_filename='/var/log/sheda_motion_orbit_manager.log'
 
-
-def CreateLogger(debug, loggername, log_file_enable, filename):
+def create_logger(debug, loggername, log_file_enable, filename):
     # Logger
     logger = logging.getLogger(loggername)
     logger.setLevel(logging.DEBUG)  # Only allow debug
@@ -46,6 +42,7 @@ def CreateLogger(debug, loggername, log_file_enable, filename):
         stream.setLevel(logging.DEBUG)
     else:
         stream.setLevel(logging.INFO)
+    logger.addHandler(stream)
 
     # ROTATING CHANNEL
     if log_file_enable:
@@ -55,105 +52,9 @@ def CreateLogger(debug, loggername, log_file_enable, filename):
             rf.setLevel(logging.DEBUG)
         else:
             rf.setLevel(logging.INFO)
+        logger.addHandler(rf)
 
-    logger.addHandler(stream)
-    logger.addHandler(rf)
     return logger
-
-
-class ShedaMotionWebServer:
-    ## Define the init script to initialize the application
-    def __init__(self,
-                 logger,
-                 debug):
-        self.debug = debug
-        self.logger = logger
-
-        # Check for running process
-        self.pid=-1
-        pid_filename = os.path.join(PID_FILE_PATH, PID_FILE_NAME)
-        if os.path.isfile(pid_filename):
-            pid_file = open(pid_filename, 'r') # read/write at begining
-            self.pid = pid_file.read()
-            logger.debug('pid file exist:'+pid_filename+" contain pid:"+self.pid)
-            pid_file.close()
-        return
-
-    # Private Utils Methodes
-    def __kill_pid(self, pid):
-        """ Check For the existence of a unix pid. """
-        try:
-            logger.debug("Kill pid:" +str(pid)+ ", gid:"+ str(os.getpgid(pid)))
-            os.killpg(os.getpgid(pid), 9)
-        except OSError:
-            return False
-        else:
-            return True
-
-    def __check_pid(self, pid):
-        """ Check For the existence of a unix pid. """
-        try:
-            os.kill(pid, 0)
-        except OSError:
-            return False
-        else:
-            return True
-
-    # Low API, should not be used directly
-    # Live streaming Part
-    def _check_running(self):
-        if self.pid != -1:
-            if (self.__check_pid(int(self.pid))):
-                logger.debug("Check running: already started")
-                return "Already Started", True
-            else:
-                logger.debug("Check running: not started, removing file")
-                pid_filename = os.path.join(PID_FILE_PATH, PID_FILE_NAME)
-                if os.path.isfile(pid_filename):
-                    os.remove(pid_filename)
-                return "Not Started", False
-        else:
-            return "No PID File", False
-
-    def preexec_function(self):
-        signal.signal(signal.SIGINT, signal.SIG_IGN)
-
-    def start(self):
-        strout_run, running = self._check_running();
-        if running :
-            return "Already Started", True
-        else:
-            args = shlex.split("/usr/bin/python sheda_motion_orbit_webserver/manage.py runserver -v 2 0.0.0.0:8090")
-            print args
-            # result = subprocess.call("nohup python sheda_motion_orbit_webserver/manage.py runserver -v 2 0.0.0.0:8090")
-            # result = subprocess.Popen([NOHUP_CMD, "python", "sheda_motion_orbit_webserver/manage.py runserver -v 2 0.0.0.0:8090"],
-            result = subprocess.Popen(args,
-                     stdout=subprocess.PIPE,
-                     stderr=subprocess.PIPE,
-                     preexec_fn=os.setsid,
-                     shell=False)
-
-            # out, err = result.communicate()
-            # if err:
-            #     return "Error in lauching the command: '" + out + "'", err
-
-            # Write PID file
-            pid_filename = os.path.join(PID_FILE_PATH, PID_FILE_NAME)
-            pid_file = open(pid_filename, 'r+' if (os.path.isfile(pid_filename)) else 'w+') # read/write at begining
-            pid_file.write(str(result.pid))
-            pid_file.close()
-
-            return "Started (pid: " + str(result.pid) + " )", True
-
-    def stop(self):
-        strout_run, running = self._check_running();
-        if running :
-            if (self.__kill_pid(int(self.pid))):
-                pid_filename = os.path.join(PID_FILE_PATH, PID_FILE_NAME)
-                os.remove(pid_filename)
-            return "Stopped (pid: " + str(self.pid) + " )", True
-        else:
-            return "Already Stopped", True
 
 def get_args(argv):
     import argparse
@@ -229,7 +130,7 @@ def main(argv):
     # print(args)
 
     # Logger
-    logger = CreateLogger(args.debug, 'ShedaMotionOrbitManager', args.logging_enable, logging_filename)
+    logger = create_logger(args.debug, 'ShedaMotionOrbitManager', args.logging_enable, logging_filename)
 
     # Configuration manipulation
     conf = ConfigParser.ConfigParser()
@@ -240,29 +141,24 @@ def main(argv):
 
     # Motion Driver
     if args.action == "start":
-        cdrv = ShedaMotionDrv(logger=logger, conf=args.conf, debug=args.debug)
-        strout, code = cdrv.start(watch=args.watch, move=args.move)
-        logger.info(strout)
+        cdrv = ShedaMotionDrv(logger=logger, conf=args.conf)
+        code = cdrv.start(watch=args.watch, move=args.move)
         sys.exit(code)
 
     elif args.action == "status":
-        cdrv = ShedaMotionDrv(logger=logger, conf=args.conf, debug=args.debug)
-        strout, code = cdrv.status(watch=args.watch, move=args.move)
-        logger.info(strout)
+        cdrv = ShedaMotionDrv(logger=logger, conf=args.conf)
+        code = cdrv.status(watch=args.watch)
         sys.exit(code)
 
     elif args.action == "stop":
-        cdrv = ShedaMotionDrv(logger=logger, conf=args.conf, debug=args.debug)
-        strout, code = cdrv.stop(watch=args.watch, move=args.move)
-        logger.info(strout)
+        cdrv = ShedaMotionDrv(logger=logger, conf=args.conf)
+        code = cdrv.stop(watch=args.watch, move=args.move)
         sys.exit(code)
 
     elif args.action == "restart":
-        cdrv = ShedaMotionDrv(logger=logger, conf=args.conf, debug=args.debug)
-        strout, code = cdrv.stop(watch=False, move=False) # force stopping
-        logger.info(strout)
-        strout, code = cdrv.start(watch=args.watch, move=args.move)
-        logger.info(strout)
+        cdrv = ShedaMotionDrv(logger=logger, conf=args.conf)
+        code = cdrv.stop(watch=False, move=False) # force stopping
+        code = cdrv.start(watch=args.watch, move=args.move)
         sys.exit(code)
 
     # ORBIT Cam Movement Driver
@@ -281,10 +177,13 @@ def main(argv):
 
         if args.hor == "reset":
             mdrv.resetHor()
+            time.sleep(1)
         elif args.hor == "right":
             mdrv.moveRight()
+            time.sleep(0.1)
         elif args.hor == "left":
             mdrv.moveLeft()
+            time.sleep(0.1)
 
         if args.position:
             mdrv.movePosition(position=args.position)
@@ -296,17 +195,20 @@ def main(argv):
         logger.warning("Warning: this command is meant to be used while devellopping, not once installed")
         webserver = ShedaMotionWebServer(logger=logger)
         if args.do == "start":
-            out, err = webserver.start()
+            code = webserver.start()
+            logger.error(code)
+            sys.exit(code)
         elif args.do == "stop":
-            out, err = webserver.stop()
+            code = webserver.stop()
+            logger.error(code)
+            sys.exit(code)
         else:
             logger.error("Error command not specifyied chose --start/--stop")
-            return 1
-        logger.info(out)
-        logger.error(err)
+            sys.exit(1)
 
     else:
-        print ("Bad command:" + str(args.action))
+        logger.error("Bad command:" + str(args.action))
+        sys.exit(1)
 
 
 if __name__ == "__main__":

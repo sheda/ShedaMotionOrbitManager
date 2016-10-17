@@ -201,13 +201,12 @@ class ShedaMotionDrv:
                     position = self.conf.get("watch", "on_position")
                     if position:
                         self.logger.info(" . Move to on_position: "+str(position))
-                        orbit_drv=ShedaOrbitDrv(self.conf_name)
+                        orbit_drv=ShedaOrbitDrv(self.logger, self.conf_name)
                         orbit_drv.movePosition(position) # timing to wait postion arrival already set
                         position_reached = True
             # Then Start running
             self.logger.info(" . Start Run")
             self._start_running()
-            time.sleep(0.5)
         else:
             self.logger.info(" . Already running")
 
@@ -223,7 +222,7 @@ class ShedaMotionDrv:
                         position = self.conf.get("watch", "on_position")
                         if position:
                             self.logger.info(" . Move to on_position: "+str(position))
-                            orbit_drv=ShedaOrbitDrv(self.conf_name)
+                            orbit_drv=ShedaOrbitDrv(self.logger, self.conf_name)
                             orbit_drv.movePosition(position)
                 # Then start the watch
                 self.logger.info(" . Start the watch")
@@ -232,6 +231,7 @@ class ShedaMotionDrv:
                 self.logger.info(" . Already watching")
         else:
             self.logger.debug(" . The Watch Not requested")
+            time.sleep(1)
             watching = self._check_watching()
             if watching:
                 self.logger.debug(" . but watching")
@@ -243,12 +243,16 @@ class ShedaMotionDrv:
         self.logger.info("STATUS command with watch: " + str(watch))
         running = self._check_running()
         if not running:
+            self.logger.info(" . Not running")
             return running
         else:
+            self.logger.info(" . Running")
             watching = self._check_watching()
             if not watch:
+                self.logger.info(" . Not Watching")
                 return True
             else:
+                self.logger.info(" . Watching")
                 return watching
 
     def stop(self, watch, move=False):
@@ -276,7 +280,7 @@ class ShedaMotionDrv:
                     position = self.conf.get("watch", "off_position")
                     if position:
                         self.logger.info(" . Move to off_position: "+str(position))
-                        orbit_drv=ShedaOrbitDrv(self.conf_name)
+                        orbit_drv=ShedaOrbitDrv(self.logger, self.conf_name)
                         orbit_drv.movePosition(position)
             return True
 
@@ -349,10 +353,10 @@ class ShedaMotionDrv:
         body = str(req.text)
         self.logger.debug((body,str(status)))
         if (status == 200) and (body.find("Detection status ACTIVE") != -1):
-            self.logger.info(" . The Watch is Active")
+            self.logger.debug(" . The Watch is Active")
             return True
         else:
-            self.logger.info(" . The Watch is Not Active")
+            self.logger.debug(" . The Watch is Not Active")
             return False
 
     def _start_watching(self):
@@ -361,8 +365,8 @@ class ShedaMotionDrv:
         req = requests.get("http://"+MOTION_ADMIN_SRV_URL+"/0/detection/start")
         status = req.status_code
         body = str(req.text)
-        self.logger.debug((body,str(status))
-        self.logger.info( " . Watch Activated")
+        self.logger.debug((body,str(status)))
+        self.logger.debug(" . Watch Activated")
         return (status == 200)
 
     def _stop_watching(self):
@@ -371,6 +375,6 @@ class ShedaMotionDrv:
         self.logger.debug(str(req))
         status = req.status_code
         body = str(req.text)
-        self.logger.debug((body,str(status))
-        self.logger.info( " . Watch Desactivated")
+        self.logger.debug((body,str(status)))
+        self.logger.debug( " . Watch Desactivated")
         return True
