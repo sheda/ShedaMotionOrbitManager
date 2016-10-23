@@ -3,7 +3,7 @@ from django.shortcuts import render
 from django.http import *
 from django.template import loader
 
-import logging
+import logging, logging.handlers
 from sheda_motion_orbit_drv.ShedaMotionOrbitDrv import ShedaOrbitDrv, ShedaMotionDrv
 
 logging_filename='/var/log/sheda_motion_orbit_manager_webserver.log'
@@ -25,8 +25,9 @@ def create_logger(debug, loggername, log_file_enable, filename):
 
     # ROTATING CHANNEL
     if log_file_enable:
-        rf = logging.RotatingFileHandler(filename, mode='a', maxBytes=1000000, backupCount=5)
-        rf.setFormatter(formatter)
+        rf = logging.handlers.RotatingFileHandler(filename, mode='a', maxBytes=1000000, backupCount=5)
+        formatter_file = logging.Formatter('%(name)s - %(levelname)s - %(asctime)-15s - %(funcName)s - %(message)s')
+        rf.setFormatter(formatter_file)
         if debug:
             rf.setLevel(logging.DEBUG)
         else:
