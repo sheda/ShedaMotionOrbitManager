@@ -29,7 +29,8 @@ setup(name='sheda_motion_orbit_manager',
       url='www.sheda.fr',
 
       scripts=["sheda_motion_orbit_manager"],
-      packages=["sheda_motion_orbit_drv"],
+      packages=["sheda_motion_orbit_drv",
+                "sheda_motion_orbit_webserver"],
       # package_dir={'sheda_motion_orbit_drv' : 'sheda_motion_orbit_drv'},                                           # package "sheda_motion_orbit_drv" is located in folder sheda_motion_orbit_drv
       # package_data={'sheda_motion_orbit_drv': ['configs/sheda_motion_orbit_manager.conf', 'configs/motion.conf']}, # package "sheda_motion_orbit_drv" has a data enclosed within 'some configs files'
 
