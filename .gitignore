@@ -1,1 +1,3 @@
+*.pyc
+sheda_motion_orbit_webserver/db.sqlite3
 build
