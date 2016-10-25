@@ -18,7 +18,6 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import shlex, subprocess
 import os, sys, time
 import ConfigParser
 import signal
@@ -196,11 +195,9 @@ def main(argv):
         webserver = ShedaMotionWebServer(logger=logger)
         if args.do == "start":
             code = webserver.start()
-            logger.error(code)
             sys.exit(code)
         elif args.do == "stop":
             code = webserver.stop()
-            logger.error(code)
             sys.exit(code)
         else:
             logger.error("Error command not specifyied chose --start/--stop")

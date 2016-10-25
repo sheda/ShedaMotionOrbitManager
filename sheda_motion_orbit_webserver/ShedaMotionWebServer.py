@@ -18,6 +18,9 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
+import shlex, subprocess
+
 # WebServer utils
 NOHUP_CMD="/usr/bin/nohup"
 PID_FILE_PATH="/var/run"
@@ -78,7 +81,7 @@ class ShedaMotionWebServer:
             return False
 
     def start(self):
-        strout_run, running = self._check_running();
+        running = self._check_running();
         if running :
             self.logger.info("Already Started")
             return True
@@ -96,16 +99,16 @@ class ShedaMotionWebServer:
             pid_file.write(str(result.pid))
             pid_file.close()
 
-            self.logger.debug(" . . Started running (pid: " + str(result.pid) + " ), wrote PID file: "+pid_filename)
+            self.logger.info(" . . Started running (pid: " + str(result.pid) + " ), wrote PID file: "+pid_filename)
             return True
 
     def stop(self):
-        strout_run, running = self._check_running();
+        running = self._check_running();
         if running :
             if (self.__kill_pid(int(self.pid))):
                 pid_filename = os.path.join(PID_FILE_PATH, PID_FILE_NAME)
                 os.remove(pid_filename)
-                self.logger.debug("Stopped Running (pid: " + str(self.pid) + " )")
+                self.logger.info("Stopped Running (pid: " + str(self.pid) + " )")
                 return True
             else:
                 self.logger.error("While Stopping (pid: " + str(self.pid) + " )")
