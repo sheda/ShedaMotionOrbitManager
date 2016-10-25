@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 #
-#  Copyright (C) 2016, Sheda (sheda1805 at gmail.com)
+#  Copyright (C) 2016, Sheda (sheda.dev at gmail.com)
 #
 #  Homepage: http://www.sheda.fr/
 #
