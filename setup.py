@@ -21,7 +21,7 @@ from distutils.core import setup
 
 setup(name='sheda_motion_orbit_manager',
       description='Manage motion live streaming and surveillance activity, as well as movement for Logitech Orbit Cam',
-      version='0.1',
+      version='1.0',
       license="GPL v3",
 
       author="Sheda",
@@ -56,11 +56,20 @@ setup(name='sheda_motion_orbit_manager',
 print """
 
 --------------------------------------------------------------------------------------------------
-Don't forget to copy the udev rule file to the right folder according to your distrib
+Don't forget to copy configs files or use it as example to the right folder according to your distrib
 --------------------------------------------------------------------------------------------------
 For example on debian/ubuntu:
 $ sudo cp configs/motion.conf /etc/motion/motion.conf
 $ sudo cp configs/sheda_motion_orbit_manager.conf /etc/sheda_motion_orbit_manager.conf
+
+This Programe rely on a lot of external parts:
+$ sudo apt-get install motion     => movement detection
+$ sudo apt-get install nohup      => motion daemonizer
+$ sudo apt-get install uvcdynctrl => Orbit movement control
+$ sudo apt-get install django     => WebServer interface
+
+for more information see..
+
 --------------------------------------------------------------------------------------------------
 """
 

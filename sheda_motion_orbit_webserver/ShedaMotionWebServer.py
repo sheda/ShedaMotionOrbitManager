@@ -22,7 +22,6 @@ import os
 import shlex, subprocess
 
 # WebServer utils
-NOHUP_CMD="/usr/bin/nohup"
 PID_FILE_PATH="/var/run"
 PID_FILE_NAME="sheda_motion_orbit_webserver.pid"
 

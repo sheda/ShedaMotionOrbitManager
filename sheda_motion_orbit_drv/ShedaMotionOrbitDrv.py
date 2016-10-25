@@ -41,8 +41,6 @@ maxPos = "6"
 # Common Control for ShedaMotionDrv
 MOTION_CMD="/usr/bin/motion"
 NOHUP_CMD="/usr/bin/nohup"
-KILL_CMD="/usr/bin/kill"
-WGETEXEC="/usr/bin/wget"
 
 # CTRL Server only for control local_loop
 CTRL_URL="127.0.0.1"
