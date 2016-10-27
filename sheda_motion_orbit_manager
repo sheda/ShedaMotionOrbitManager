@@ -114,7 +114,7 @@ def get_args(argv):
     move_parser.add_argument('-p', '--position', dest='position', type=str, help="Move to preset position number(see config file)")
 
     # WebServer command
-    webserver_parser = subparsers.add_parser('webserver', help="Launch Webserver")
+    webserver_parser = subparsers.add_parser('webserver', help="Launch Webserver -> You MUST run webserver launch from root folder of package sources")
     action = webserver_parser.add_mutually_exclusive_group()
     action.add_argument('-s', '--start', dest='do', action="store_const", const="start", help="Start the webserver in background")
     action.add_argument('-S', '--stop',  dest='do', action="store_const", const="stop",  help="Stop the webserver")
@@ -191,7 +191,15 @@ def main(argv):
         sys.exit(0)
 
     elif args.action == "webserver":
-        logger.warning("Warning: this command is meant to be used while devellopping, not once installed")
+        logger.warning("This command is meant to be used while devellopping, not once installed")
+        manage_py_file = os.path.join("sheda_motion_orbit_webserver","manage.py")
+        if not os.path.isfile(manage_py_file):
+            logger.error("*******************************************************************")
+            logger.error("You MUST run webserver launch from root folder of package sources")
+            logger.error("Launch from setup.py and sheda_motion_orbit_manager folder")
+            logger.error("manage.py must be found at sheda_motion_orbit_webserver/manage.py")
+            logger.error("*******************************************************************")
+            sys.exit(1)
         webserver = ShedaMotionWebServer(logger=logger)
         if args.do == "start":
             code = webserver.start()
