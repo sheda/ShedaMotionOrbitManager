@@ -37,14 +37,6 @@ maxPos = "6"
 
 # ---------------------------------
 # Common Control for ShedaMotionDrv
-MOTION_CMD="/usr/bin/motion"
-NOHUP_CMD="/usr/bin/nohup"
-
-# CTRL Server only for control local_loop
-CTRL_URL="127.0.0.1"
-CTRL_PORT="8080"
-MOTION_ADMIN_SRV_URL=CTRL_URL+":"+CTRL_PORT
-
 # MOTION MANAGER
 PID_FILE_PATH="/var/run"
 PID_FILE_NAME="sheda_motion_orbit_manager.pid"
@@ -173,6 +165,60 @@ class ShedaMotionDrv:
         self.conf_name = conf
         self.conf = ConfigParser.ConfigParser()
         self.cfg_ok = self.conf.read([self.conf_name])
+        if self.cfg_ok:
+            self.logger.debug("Configuration OK")
+            self.motion_cmd = self.conf.get("cmd", "motion_cmd")
+            self.nohup_cmd  = self.conf.get("cmd", "nohup_cmd")
+
+            self.on_position  = self.conf.get("watch", "on_position")
+            self.off_position = self.conf.get("watch", "off_position")
+
+            self.motion_admin_ip   = self.conf.get("motion", "motion_admin_ip")
+            self.motion_admin_port = self.conf.get("motion", "motion_admin_port")
+
+            self.motion_livestreaming_ip   = self.conf.get("motion", "motion_livestreaming_ip")
+            self.motion_livestreaming_port = self.conf.get("motion", "motion_livestreaming_port")
+
+        else:
+            self.logger.debug("Configuration NOK")
+            self.motion_cmd ="/usr/bin/motion"
+            self.nohup_cmd  ="/usr/bin/nohup"
+
+            self.off_position = "0"
+            self.on_position  = "1"
+
+            self.motion_admin_ip   = "127.0.0.1"
+            self.motion_admin_port = "8080"
+
+            self.motion_livestreaming_ip   = "127.0.0.1"
+            self.motion_livestreaming_port = "8081"
+
+        # Check values of configs
+        # - value for livestreaming server
+        if not self.motion_livestreaming_port:
+            self.motion_livestreaming_port = "8081"
+
+        if self.motion_livestreaming_ip:
+            self.logger.debug("Conf: motion_livestreaming_ip: "+self.motion_livestreaming_ip)
+            if self.motion_livestreaming_ip == "auto":
+                import socket
+                try:
+                    auto_ip=[l for l in ([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")][:1], [[(s.connect(('8.8.8.8', 53)), s.getsockname()[0], s.close()) for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) if l][0][0]
+                    self.motion_livestreaming_ip = str(auto_ip)
+                    self.logger.debug("Conf: motion_livestreaming_ip: "+self.motion_livestreaming_ip)
+                except:
+                    self.motion_livestreaming_ip = "127.0.0.1"
+            else:
+                self.motion_livestreaming_ip = "127.0.0.1"
+        else:
+            self.motion_livestreaming_ip = "127.0.0.1"
+
+        # - value for admin server
+        if not(self.motion_admin_ip and self.motion_admin_port):
+            self.motion_admin_ip_port="127.0.0.1:8080"
+        else:
+            self.motion_admin_ip_port=self.motion_admin_ip+":"+self.motion_admin_port
+
 
         # Check for running process
         self.pid=-1
@@ -195,13 +241,11 @@ class ShedaMotionDrv:
             self.logger.debug(" . Not running")
             # First move the camera
             if move:
-                if self.cfg_ok:
-                    position = self.conf.get("watch", "on_position")
-                    if position:
-                        self.logger.info(" . Move to on_position: "+str(position))
-                        orbit_drv=ShedaOrbitDrv(self.logger, self.conf_name)
-                        orbit_drv.movePosition(position) # timing to wait postion arrival already set
-                        position_reached = True
+                if self.on_position:
+                    self.logger.info(" . Move to on_position: "+str(self.on_position))
+                    orbit_drv=ShedaOrbitDrv(self.logger, self.conf_name)
+                    orbit_drv.movePosition(self.on_position) # timing to wait postion arrival already set
+                    position_reached = True
             # Then Start running
             self.logger.info(" . Start Run")
             self._start_running()
@@ -216,12 +260,10 @@ class ShedaMotionDrv:
                 self.logger.debug(" . not watching")
                 # First move the camera if not already done
                 if move and not position_reached:
-                    if self.cfg_ok:
-                        position = self.conf.get("watch", "on_position")
-                        if position:
-                            self.logger.info(" . Move to on_position: "+str(position))
-                            orbit_drv=ShedaOrbitDrv(self.logger, self.conf_name)
-                            orbit_drv.movePosition(position)
+                    if self.on_position:
+                        self.logger.info(" . Move to on_position: "+str(self.on_position))
+                        orbit_drv=ShedaOrbitDrv(self.logger, self.conf_name)
+                        orbit_drv.movePosition(self.on_position)
                 # Then start the watch
                 self.logger.info(" . Start the watch")
                 self._start_watching()
@@ -274,12 +316,10 @@ class ShedaMotionDrv:
 
             # Then move to the off postion
             if move:
-                if self.cfg_ok:
-                    position = self.conf.get("watch", "off_position")
-                    if position:
-                        self.logger.info(" . Move to off_position: "+str(position))
-                        orbit_drv=ShedaOrbitDrv(self.logger, self.conf_name)
-                        orbit_drv.movePosition(position)
+                if self.off_position:
+                    self.logger.info(" . Move to off_position: "+str(self.off_position))
+                    orbit_drv=ShedaOrbitDrv(self.logger, self.conf_name)
+                    orbit_drv.movePosition(self.off_position)
             return True
 
     # Private Utils Methodes
@@ -320,7 +360,7 @@ class ShedaMotionDrv:
 
 
     def _start_running(self):
-        proc = subprocess.Popen([NOHUP_CMD, MOTION_CMD, "2>&1"],
+        proc = subprocess.Popen([self.nohup_cmd, self.motion_cmd, "2>&1"],
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
                                 shell=False)
@@ -346,7 +386,7 @@ class ShedaMotionDrv:
     # WATCH PART
     def _check_watching(self):
         import requests
-        req = requests.get("http://"+MOTION_ADMIN_SRV_URL+"/0/detection/status")
+        req = requests.get("http://"+self.motion_admin_ip_port+"/0/detection/status")
         status = req.status_code
         body = str(req.text)
         self.logger.debug((body,str(status)))
@@ -360,7 +400,7 @@ class ShedaMotionDrv:
     def _start_watching(self):
         # Start Motion
         import requests
-        req = requests.get("http://"+MOTION_ADMIN_SRV_URL+"/0/detection/start")
+        req = requests.get("http://"+self.motion_admin_ip_port+"/0/detection/start")
         status = req.status_code
         body = str(req.text)
         self.logger.debug((body,str(status)))
@@ -369,7 +409,7 @@ class ShedaMotionDrv:
 
     def _stop_watching(self):
         import requests
-        req = requests.get("http://"+MOTION_ADMIN_SRV_URL+"/0/detection/pause")
+        req = requests.get("http://"+self.motion_admin_ip_port+"/0/detection/pause")
         self.logger.debug(str(req))
         status = req.status_code
         body = str(req.text)
