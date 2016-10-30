@@ -89,7 +89,6 @@ For more info on [sheda.fr]
 ### Todos
 
  - IP watch disable if some IP appear on the network
- - Make all IP configurables this break server
 
 [Django]: https://www.djangoproject.com/
 [Motion]:http://lavrsen.dk/foswiki/bin/view/Motion/WebHome
