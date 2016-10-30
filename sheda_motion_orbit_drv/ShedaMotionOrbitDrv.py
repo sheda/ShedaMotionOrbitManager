@@ -322,6 +322,10 @@ class ShedaMotionDrv:
                     orbit_drv.movePosition(self.off_position)
             return True
 
+    def get_livestreamn_ip_port(self):
+        self.logger.info("IP_PORT command ip:"+str(self.motion_livestreaming_ip)+", port:"+str(self.motion_livestreaming_port))
+        return self.motion_livestreaming_ip, self.motion_livestreaming_port
+
     # Private Utils Methodes
     def __kill_pid(self, pid):
         """ Check For the existence of a unix pid. """
