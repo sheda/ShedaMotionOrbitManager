@@ -138,12 +138,17 @@ def control(request):
     else:
         return HttpResponse("Error select the right button")
 
+    # Get Ip/Port of the livestreaming
+    ip, port = motion_drv.get_livestreamn_ip_port()
+    live_ip_port = "{}:{}".format(ip, port)
+
     positions_names = ""
     for i in range(0,7):
        positions_names+=str(i)+": "+orbit_drv.getPosName(str(i))+", "
 
     status_init = get_status_init()
-    return render(request, 'webcam/webcam.html', {'detection_init_status': status_init, 'detection_curr_status': status_curr, 'positions_names': positions_names})
+
+    return render(request, 'webcam/webcam.html', {'detection_init_status': status_init, 'detection_curr_status': status_curr, 'positions_names': positions_names, 'live_ip_port': live_ip_port})
 
 def index(request):
     # Logger
@@ -164,8 +169,12 @@ def index(request):
 
     status_curr = motion_drv.status(True)
 
+    # Get Ip/Port of the livestreaming
+    ip, port = motion_drv.get_livestreamn_ip_port()
+    live_ip_port = "{}:{}".format(ip, port)
+
     positions_names = ""
     for i in range(0,7):
        positions_names+=str(i)+": "+orbit_drv.getPosName(str(i))+", "
 
-    return render(request, 'webcam/webcam.html', {'detection_init_status': status_init, 'detection_curr_status': status_curr, 'positions_names': positions_names})
+    return render(request, 'webcam/webcam.html', {'detection_init_status': status_init, 'detection_curr_status': status_curr, 'positions_names': positions_names, 'live_ip_port': live_ip_port })

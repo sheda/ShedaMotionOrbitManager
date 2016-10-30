@@ -3,7 +3,7 @@
 <head><title> Sheda Motion</title></head>
 <body>
     <center>
-    <iframe src="http://192.168.0.15:8081" width="320" height="240"></iframe>
+    <iframe src="http://{{ live_ip_port }}" width="320" height="240"></iframe>
     <form name="control" action="{% url 'webcam:control' %}" method="post">
     Watch detection:
     <br>
