@@ -25,8 +25,6 @@ import time
 
 # ---------------------------------
 # Common control for ShedaOrbitDrv
-UVCDYNCTRLEXEC="/usr/bin/uvcdynctrl"
-
 # The value indicates amount of movement for panning and tilt
 # Max Ranges (determined with uvcdynctrl -v -c):
 # Tilt = -1920 to 1920
@@ -61,23 +59,25 @@ class ShedaOrbitDrv:
         self.conf = ConfigParser.ConfigParser()
         self.cfg_ok = self.conf.read([conf])
         if not self.cfg_ok:
-            self.panRight = panRight
-            self.panLeft  = panLeft
-            self.tiltUp   = tiltUp
-            self.tiltDown = tiltDown
-            self.max_pos  = maxPos
+            self.uvcdynctrlexec = "/usr/bin/uvcdynctrl"
+            self.panRight       = panRight
+            self.panLeft        = panLeft
+            self.tiltUp         = tiltUp
+            self.tiltDown       = tiltDown
+            self.max_pos        = maxPos
         else:
-            self.panRight = self.conf.get("position", "panRight")
-            self.panLeft  = self.conf.get("position", "panLeft")
-            self.tiltUp   = self.conf.get("position", "tiltUp")
-            self.tiltDown = self.conf.get("position", "tiltDown")
-            self.max_pos  = self.conf.get("position", "max_pos")
+            self.uvcdynctrlexec = self.conf.get("cmd",      "uvcdynctrl_cmd")
+            self.panRight       = self.conf.get("position", "panRight")
+            self.panLeft        = self.conf.get("position", "panLeft")
+            self.tiltUp         = self.conf.get("position", "tiltUp")
+            self.tiltDown       = self.conf.get("position", "tiltDown")
+            self.max_pos        = self.conf.get("position", "max_pos")
         return
 
     # Generic Move
     def __moveGeneric(self, control, value):
         self.logger.debug("Move "+ str(control) + " "+ str(value))
-        result = subprocess.Popen([UVCDYNCTRLEXEC, "-s", control, "--", value],
+        result = subprocess.Popen([self.uvcdynctrlexec, "-s", control, "--", value],
                  stdout=subprocess.PIPE,
                  stderr=subprocess.PIPE,
                  shell=False)
@@ -86,7 +86,7 @@ class ShedaOrbitDrv:
 
     # Generic Reset
     def __resetGeneric(self, control, value):
-        result = subprocess.Popen([UVCDYNCTRLEXEC, "-s", control, value],
+        result = subprocess.Popen([self.uvcdynctrlexec, "-s", control, value],
                  stdout=subprocess.PIPE,
                  stderr=subprocess.PIPE,
                  shell=False)
