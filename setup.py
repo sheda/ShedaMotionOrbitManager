@@ -21,7 +21,7 @@ from distutils.core import setup
 
 setup(name='sheda_motion_orbit_manager',
       description='Manage motion live streaming and surveillance activity, as well as movement for Logitech Orbit Cam',
-      version='1.1',
+      version='1.2',
       license="GPL v3",
 
       author="Sheda",

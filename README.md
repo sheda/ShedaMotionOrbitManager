@@ -15,7 +15,7 @@ ShedaMotionOrbitManager is writtent in python 2.7 and rely on several third part
 - [nohup] for background running
 
 ### Version
-1.1
+1.2
 
 ### License
 Gnu GPLv3
@@ -24,10 +24,10 @@ Gnu GPLv3
 
 1- You need apt or any package manager to install required third party, following exemple of installatio non debian/ubuntu
 ```sh
-$ apt-get install coreutils
-$ apt-get install uvcdynctrl
-$ apt-get install motion
-$ apt-get install django
+$ sudo apt-get install coreutils
+$ sudo apt-get install uvcdynctrl
+$ sudo apt-get install motion
+$ sudo apt-get install django
 ```
 
 2- Verify thrid every thing well installed:
@@ -53,10 +53,29 @@ $ motion
 $ python setup.py install
 ```
 
-4- Verify that configs files where installed, else install those:
+4- Verify that configs files were well installed, else install those:
 ```sh
 $ sudo cp configs/motion.conf /etc/motion/motion.conf
 $ sudo cp configs/sheda_motion_orbit_manager.conf /etc/sheda_motion_orbit_manager.conf
+```
+
+5- Give notification method to motion when movement is detected:
+
+They are two triggers at the end of my motion config file example /etc/motion/motion.conf:
+```sh
+# on_picture_save <change here your command to notify> %f %s %v %n
+# on_movie_end    <change here your commcmd_to_notify> %f %s %v %n
+```
+Those trigger will launch associated command when trigerred, and add arguments to this command like %f (Which is the picture/movie absolute path of the detection). You can for example remplace those by mailling command.
+```sh
+on_picture_save (echo -e 'Movement detected here is the picture'; uuencode %f %f) | mail -s [ShedaMotionOrbitManager]_MOVEMENT_DETECTED_-PICTURE-_%d/%m/%Y_%H.%M <your email>@<mail.com>
+on_movie_end    (echo -e 'Movement detected here is the movie'; uuencode %f %f) | mail -s [ShedaMotionOrbitManager]_MOVEMENT_DETECTED_-MOVIE-_%d/%m/%Y_%H.%M <your email>@<mail.com>
+```
+More on [MotionSpecifier]
+
+Note: This example use uuencode part of sharutils package to install it:
+```sh
+sudo apt-get install sharutils
 ```
 
 ### Toying
@@ -83,6 +102,11 @@ Interesting files for webserver
 Interesting file for script
 - /var/run/sheda_motion_orbit_manager.pid
 - /var/log/sheda_motion_orbit_manager.log
+- /etc/sheda_motion_orbit_manager.conf
+
+Interesting file for motion, second is for detection generated pictures/movies:
+- /etc/motion/motion.conf
+- /tmp/motion/*
 
 For more info on [sheda.fr]
 
@@ -92,6 +116,7 @@ For more info on [sheda.fr]
 
 [Django]: https://www.djangoproject.com/
 [Motion]:http://lavrsen.dk/foswiki/bin/view/Motion/WebHome
+[MotionSpecifier]:http://www.lavrsen.dk/foswiki/bin/view/Motion/ConversionSpecifiers
 [uvcdynctrl]: https://packages.debian.org/sid/utils/uvcdynctrl
 [nohup]: http://manpages.ubuntu.com/manpages/precise/man1/nohup.1.html
 [sheda.fr]: http://www.sheda.fr
